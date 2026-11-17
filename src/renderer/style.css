@@ -1,0 +1,21 @@
+html, body, #app { height: 100%; margin: 0; }
+body {
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  background: #18181c;
+  color: #ebebef;
+  -webkit-font-smoothing: antialiased;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #3a3a40; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-running { background: #36ad6a; box-shadow: 0 0 6px #36ad6a80; }
+.status-starting, .status-stopping { background: #f0a020; }
+.status-stopped, .status-idle { background: #6b6b70; }
+.status-crashed { background: #e88080; box-shadow: 0 0 6px #e8808080; }
+
+.mono { font-family: Consolas, "Courier New", monospace; }
+.log-line { white-space: pre-wrap; word-break: break-all; line-height: 1.45; }
+.log-err { color: #e88080; }
+.log-out { color: #c0c0c8; }

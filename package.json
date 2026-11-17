@@ -1,0 +1,35 @@
+{
+  "name": "localdeploy",
+  "version": "0.1.0",
+  "description": "LocalDeploy - 本地前端/后端项目一键部署管理桌面工具",
+  "main": "out/main/index.js",
+  "author": "zjj",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && vue-tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "dist": "electron-vite build && electron-builder",
+    "dist:portable": "electron-vite build && electron-builder --win portable",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "naive-ui": "^2.40.1",
+    "pinia": "^2.2.6",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8",
+    "vue": "^3.5.13",
+    "vue-tsc": "^2.2.10"
+  }
+}

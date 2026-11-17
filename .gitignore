@@ -1,0 +1,12 @@
+node_modules/
+out/
+release/
+dist/
+*.log
+.npm-install.log
+.vitest-run1.log
+.builder.log
+npm-types.log
+.dsh-ops/
+.dsh-progress/
+.DS_Store
