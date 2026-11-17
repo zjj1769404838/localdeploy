@@ -5,7 +5,8 @@ Windows 本地部署管理桌面工具：一键托管前端构建产物与后端
 免费开源（MIT），零云依赖，数据全部留在本机。
 
 ## 下载
-Release 页：`LocalDeploy-0.1.0-portable.exe`（绿色版，双击即用）或 `LocalDeploy-0.1.0-setup.exe`（安装版）。
+Release 页：`LocalDeploy-0.1.1-portable.exe`（绿色版，双击即用）或 `LocalDeploy-0.1.1-setup.exe`（安装版）。
+https://github.com/zjj1769404838/localdeploy/releases/latest
 
 > **SmartScreen 提示**：本工具未做付费代码签名（零成本开源原则）。首次运行若出现 Windows 已保护你的电脑 → 点「更多信息」→「仍要运行」。
 

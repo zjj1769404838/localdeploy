@@ -1,6 +1,6 @@
 {
   "name": "localdeploy",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "LocalDeploy - 本地前端/后端项目一键部署管理桌面工具",
   "main": "out/main/index.js",
   "author": "zjj",
