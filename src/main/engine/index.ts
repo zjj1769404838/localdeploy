@@ -74,7 +74,12 @@ export class Engine extends EventEmitter {
     }
     this.proc.updateSettings(this.cfg().settings.proc)
     for (const p of this.cfg().projects) this.proc.register(p, this.hubFor(p))
-    this.store.onChange = (next, prev) => { void this.applyConfigChange(next, prev) }
+    this.store.onChange = (next, prev) => { void this.applyConfigChange(next, prev).catch(e => {
+      this.warn({ code: 'W_CONFIG_APPLY', message: `配置热应用失败：${(e as Error).message}` })
+    }) }
+    this.store.onParseError = (e) => {
+      this.warn({ code: 'W_CONFIG_PARSE', message: `config.yaml 解析失败，已保留旧配置：${e.message}` })
+    }
     this.store.watch()
     this.proc.on('status', (id, status, detail) => {
       if (status === 'crashed' || status === 'stopped') { /* 状态本身即通知 */ }
@@ -99,17 +104,29 @@ export class Engine extends EventEmitter {
   async shutdown(): Promise<void> {
     await this.proc.shutdownAll()
     for (const h of this.logHubs.values()) h.closeFile()
-    if (this.gw) await this.gw.stop()
+    await this.enqueueGw(async () => {
+      if (this.gw) { await this.gw.stop(); this.gw = null }
+    })
     await this.store.close()
   }
 
   private cfg(): ConfigFile { return this.store.current }
 
+  // ---------- M3：网关操作单队列串行，防三路径并发 stop/start ----------
+  private gwQueue: Promise<void> = Promise.resolve()
+  private enqueueGw(fn: () => Promise<void>): Promise<void> {
+    const run = this.gwQueue.then(fn, fn)
+    this.gwQueue = run.then(() => undefined, () => undefined)
+    return this.gwQueue.then(() => undefined, () => undefined)
+  }
+
   private startGateway(): Promise<void> {
-    return this.buildGateway().start().then(async st => {
+    return this.enqueueGw(async () => {
+      const st = await this.buildGateway().start()
       this.gwState = st
       if (!st.running) this.warn({ code: 'W_GATEWAY_BIND', message: st.error ?? '网关启动失败' })
       else this.unwarn('W_GATEWAY_BIND')
+      this.emitState()
     })
   }
   private gwState: AppState['gateway'] = { running: false, httpPort: 0, httpsPort: 0, httpsActive: false }
@@ -197,15 +214,17 @@ export class Engine extends EventEmitter {
     return c.projects.filter(p => p.domain).map(p => `${p.domain}|${p.type}|${p.dir ?? ''}|${p.port ?? ''}|${p.spa ? 1 : 0}`).sort()
   }
 
-  private async restartGateway(): Promise<void> {
-    const old = this.gw
-    if (old) await old.stop() // 先停旧再启新：同端口重绑否则 EADDRINUSE
-    const gw = this.buildGateway()
-    await gw.start()
-    this.gwState = gw.state
-    if (!gw.state.running) this.warn({ code: 'W_GATEWAY_BIND', message: gw.state.error ?? '网关启动失败' })
-    else this.unwarn('W_GATEWAY_BIND')
-    if (old && old !== gw) await old.stop()
+  private restartGateway(): Promise<void> {
+    return this.enqueueGw(async () => {
+      const old = this.gw
+      if (old) await old.stop() // 先停旧再启新：同端口重绑否则 EADDRINUSE
+      const gw = this.buildGateway()
+      await gw.start()
+      this.gwState = gw.state
+      if (!gw.state.running) this.warn({ code: 'W_GATEWAY_BIND', message: gw.state.error ?? '网关启动失败' })
+      else this.unwarn('W_GATEWAY_BIND')
+      this.emitState()
+    })
   }
 
   // ---------- hosts ----------
@@ -216,7 +235,7 @@ export class Engine extends EventEmitter {
       ? this.cfg().projects.filter(p => p.domain).map(p => ({ domain: p.domain, op: 'add' as const }))
       : []
     if (!full) return
-    const r = await this.hosts.apply(entries)
+    const r = await this.hosts.apply(entries, full)
     if (r.ok) { this.hostsOk = true; this.hostsError = undefined; this.unwarn('W_HOSTS_DENIED'); this.unwarn('W_HOSTS_CORRUPT') }
     else {
       this.hostsOk = false
@@ -367,13 +386,32 @@ export class Engine extends EventEmitter {
 
   async apiSettingsUpdate(patch: Partial<Settings>): Promise<IpcResult<Settings>> {
     const cur = this.cfg()
-    const next: ConfigFile = { ...structuredClone(cur), settings: structuredClone(patch) as Settings }
+    // M5：与当前 settings 深合并（按节 spread），缺节保留现值而非回落默认
+    const merged: Settings = structuredClone(cur.settings)
+    for (const k of ['gateway', 'domain', 'proc', 'logs', 'autostart'] as const) {
+      if (patch[k]) Object.assign(merged[k], patch[k])
+    }
+    const prevBoot = cur.settings.autostart.appOnBoot
+    const next: ConfigFile = { ...structuredClone(cur), settings: merged }
     try { this.store.save(next) } catch (e) { return { ok: false, code: 'E_VALIDATION', message: (e as Error).message } }
-    // HTTPS 开关变化 → 证书与网关处理在 applyConfigChange 已触发；这里补 cert ensure
-    if (patch.gateway?.httpsEnabled && this.certs) {
+    // M6：appOnBoot 变化联动注册表（注册表为准；失败时把 config 镜像回滚并警告）
+    if (merged.autostart.appOnBoot !== prevBoot) {
+      const exe = this.opts.exePath ?? process.execPath
+      const r = await this.autostart.setEnabled(exe, merged.autostart.appOnBoot)
+      if (!r.ok) {
+        this.warn({ code: 'W_AUTOSTART_DENIED', message: r.error ?? '注册表写入失败' })
+        const rollback: ConfigFile = { ...structuredClone(this.cfg()) }
+        rollback.settings.autostart.appOnBoot = prevBoot
+        try { this.store.save(rollback) } catch { /* keep warning */ }
+        return { ok: false, code: 'E_AUTOSTART', message: r.error ?? '' }
+      }
+      this.unwarn('W_AUTOSTART_DENIED')
+    }
+    // HTTPS 开关变化时确保证书就位（文件写好后 gwCert 回调会再启一次；均走串行队列）
+    if (merged.gateway.httpsEnabled && this.certs) {
       const r = await this.certs.ensure()
       if (!r.ok) this.warn({ code: 'W_CERT_UNAVAILABLE', message: r.error ?? 'HTTPS 证书不可用' })
-      await this.restartGateway()
+      else this.unwarn('W_CERT_UNAVAILABLE')
     }
     return { ok: true, data: this.cfg().settings }
   }
@@ -398,6 +436,12 @@ export class Engine extends EventEmitter {
     const r = await this.autostart.setEnabled(exe, enabled)
     if (!r.ok) { this.warn({ code: 'W_AUTOSTART_DENIED', message: r.error ?? '注册表写入失败' }); return { ok: false, code: 'E_AUTOSTART', message: r.error ?? '' } }
     this.unwarn('W_AUTOSTART_DENIED')
+    // M6：成功后把真实状态镜像进 config，保持单一显示事实源
+    if (this.cfg().settings.autostart.appOnBoot !== enabled) {
+      const next: ConfigFile = structuredClone(this.cfg())
+      next.settings.autostart.appOnBoot = enabled
+      try { this.store.save(next) } catch { /* 镜像失败不影响注册表真值 */ }
+    }
     return { ok: true, data: enabled }
   }
 }

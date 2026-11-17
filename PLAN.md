@@ -30,4 +30,5 @@ Electron + Node.js 引擎 + Vue3/Vite/TS/Naive UI；真窗口+托盘；静态 di
 - 2026-11-17 22:06 立项，S1 文档落盘中。
 - 2026-11-17 22:36 双 typecheck exit 0、Vitest 31/31 exit 0、electron-vite build exit 0；mkcert.exe v1.4.4 SHA-256=d2660b50a9ed59eada480750561c96abc2ed4c9a38c6a24d93e30e0977631398（npx 在 MSYS 下吞命令勿用，node 直调入口）；git 仓 init main。
 - 2026-11-17 22:42 **S8 打包 exit 0**：`release/LocalDeploy-0.1.0-portable.exe` 77,086,293B SHA-256=6164a53d44d4c2741fc4868e2bd22b2676b851ca730c54f41b425d3bedb289c0；`release/LocalDeploy-0.1.0-setup.exe` 77,314,017B SHA-256=621d40ac1b3b79d65f7c67971610fe71c3e958bba442e52800663067c47c0163。不签名（拍板 D15）。坑位留痕：winCodeSign-2.6.0 解包含 darwin 符号链接非管理员必败 → 手动 7za -xr!darwin 预解缓存可解（EXIT=1 后重跑 EXIT=0）。
-- [x] S8 打包：portable + nsis 产物如上，SHA-256 已记录。
+- 2026-11-17 22:42 S8 完成：portable + nsis 产物与 SHA-256 如上；本地基线提交 4319261。
+- 2026-11-17 23:05 **S10 GitHub 交付完成（第一轮核验）**：仓库 https://github.com/zjj1769404838/localdeploy （public）；main=431926198b457be06fde8d09523543680f31bd55 与本地 HEAD ls-remote 逐字一致；tag v0.1.0 已推；Release id=448773562 两资产 uploaded，匿名 API 读回 size 与本地字节一致（portable 77,086,293 / setup 77,314,017）；正在做资产重新下载 SHA-256 独立核验。凭据全程经 git credential 通道取用，未落盘未入聊天。

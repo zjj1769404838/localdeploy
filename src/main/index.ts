@@ -142,8 +142,14 @@ if (!app.requestSingleInstanceLock()) {
   })
 }
 
-app.on('before-quit', () => {
+let quitStarted = false
+app.on('before-quit', (e) => {
   quitting = true
-  void engine?.shutdown()
+  if (engine && !quitStarted) {
+    // M1：等待子进程树杀/网关停止完成后再放行退出，防孤儿进程
+    e.preventDefault()
+    quitStarted = true
+    void engine.shutdown().then(() => app.exit(0))
+  }
 })
 app.on('window-all-closed', () => { /* 托盘常驻，不退出 */ })

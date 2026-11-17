@@ -162,7 +162,15 @@ export class Gateway {
     if (this.httpsSrv) all.push(this.httpsSrv)
     this.servers = []
     this.httpsSrv = null
-    await Promise.all(all.map(s => new Promise<void>(r => s.close(() => r()))))
+    // M2：先掐空闲连接，close 等待期加 2s 超时后强断全部连接，防 WS/长轮询挂死 restart
+    for (const s of all) { try { s.closeIdleConnections() } catch { /* noop */ } }
+    await Promise.all(all.map(s => new Promise<void>(r => {
+      const t = setTimeout(() => {
+        try { s.closeAllConnections() } catch { /* noop */ }
+        r()
+      }, 2000)
+      s.close(() => { clearTimeout(t); r() })
+    })))
     this.state.running = false
     this.state.httpsActive = false
     this.redirectHttp = false

@@ -99,8 +99,7 @@ async function setAutostart(v: boolean): Promise<void> {
       </n-form-item>
       <n-form-item label="启动时恢复上次项目">
         <n-switch v-model:value="s.autostart.resumeProjects" />
-      </n-form-item>
-    </n-form>
+      </n-form-item>    </n-form>
     <n-space>
       <n-button @click="emit('back')">返回</n-button>
       <n-button type="primary" @click="save">保存</n-button>

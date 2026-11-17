@@ -10,8 +10,8 @@ export const END = '# END LOCALDEPLOY MANAGED'
 export type HostsOp = 'add' | 'remove'
 export interface HostsEntry { domain: string; op: HostsOp }
 
-/** 对文本应用区块变更（纯函数，可单测）；返回新文本或错误码 */
-export function applyBlock(text: string, entries: HostsEntry[]): { ok: true; text: string } | { ok: false; code: 'corrupt' } {
+/** 对文本应用区块变更（纯函数，可单测）；replace=true 时以 entries 全量替换区块内容（M4） */
+export function applyBlock(text: string, entries: HostsEntry[], replace = false): { ok: true; text: string } | { ok: false; code: 'corrupt' } {
   const bCount = text.split('\n').filter(l => l.trim() === BEGIN).length
   const eCount = text.split('\n').filter(l => l.trim() === END).length
   if (bCount > 1 || eCount > 1) return { ok: false, code: 'corrupt' }
@@ -31,9 +31,11 @@ export function applyBlock(text: string, entries: HostsEntry[]): { ok: true; tex
   }
   // 当前域集合
   const domains = new Set<string>()
-  for (const l of block) {
-    const m = l.trim().match(/^(?:127\.0\.0\.1|::1)\s+(\S+)$/)
-    if (m && m[1]) domains.add(m[1])
+  if (!replace) {
+    for (const l of block) {
+      const m = l.trim().match(/^(?:127\.0\.0\.1|::1)\s+(\S+)$/)
+      if (m && m[1]) domains.add(m[1])
+    }
   }
   for (const e of entries) {
     if (e.op === 'add') domains.add(e.domain)
@@ -92,9 +94,9 @@ export class HostsManager {
    * 应用变更。普通权限直写；EACCES/EPERM → 提权重试一次；仍失败 → 降级。
    * entries 为本次要做的操作（增量语义）。
    */
-  async apply(entries: HostsEntry[]): Promise<HostsResult> {
+  async apply(entries: HostsEntry[], replace = false): Promise<HostsResult> {
     const text = this.currentText()
-    const merged = applyBlock(text, entries)
+    const merged = applyBlock(text, entries, replace)
     if (!merged.ok) {
       return { ok: false, degraded: false, code: 'corrupt', message: 'hosts 标记区块损坏，拒绝写入' }
     }
